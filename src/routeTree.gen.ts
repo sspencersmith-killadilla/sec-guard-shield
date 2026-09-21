@@ -14,6 +14,9 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedConsoleRouteImport } from './routes/_authenticated/console'
 import { Route as ApiPublicHooksSyncFeedsRouteImport } from './routes/api/public/hooks/sync-feeds'
+import { Route as ApiPublicHooksWorkerClaimRouteImport } from './routes/api/public/hooks/worker/claim'
+import { Route as ApiPublicHooksWorkerProgressRouteImport } from './routes/api/public/hooks/worker/progress'
+import { Route as ApiPublicHooksWorkerResultRouteImport } from './routes/api/public/hooks/worker/result'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -39,18 +42,42 @@ const ApiPublicHooksSyncFeedsRoute = ApiPublicHooksSyncFeedsRouteImport.update({
   path: '/api/public/hooks/sync-feeds',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksWorkerClaimRoute =
+  ApiPublicHooksWorkerClaimRouteImport.update({
+    id: '/api/public/hooks/worker/claim',
+    path: '/api/public/hooks/worker/claim',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksWorkerProgressRoute =
+  ApiPublicHooksWorkerProgressRouteImport.update({
+    id: '/api/public/hooks/worker/progress',
+    path: '/api/public/hooks/worker/progress',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksWorkerResultRoute =
+  ApiPublicHooksWorkerResultRouteImport.update({
+    id: '/api/public/hooks/worker/result',
+    path: '/api/public/hooks/worker/result',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/console': typeof AuthenticatedConsoleRoute
   '/api/public/hooks/sync-feeds': typeof ApiPublicHooksSyncFeedsRoute
+  '/api/public/hooks/worker/claim': typeof ApiPublicHooksWorkerClaimRoute
+  '/api/public/hooks/worker/progress': typeof ApiPublicHooksWorkerProgressRoute
+  '/api/public/hooks/worker/result': typeof ApiPublicHooksWorkerResultRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/console': typeof AuthenticatedConsoleRoute
   '/api/public/hooks/sync-feeds': typeof ApiPublicHooksSyncFeedsRoute
+  '/api/public/hooks/worker/claim': typeof ApiPublicHooksWorkerClaimRoute
+  '/api/public/hooks/worker/progress': typeof ApiPublicHooksWorkerProgressRoute
+  '/api/public/hooks/worker/result': typeof ApiPublicHooksWorkerResultRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -59,12 +86,29 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/console': typeof AuthenticatedConsoleRoute
   '/api/public/hooks/sync-feeds': typeof ApiPublicHooksSyncFeedsRoute
+  '/api/public/hooks/worker/claim': typeof ApiPublicHooksWorkerClaimRoute
+  '/api/public/hooks/worker/progress': typeof ApiPublicHooksWorkerProgressRoute
+  '/api/public/hooks/worker/result': typeof ApiPublicHooksWorkerResultRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/console' | '/api/public/hooks/sync-feeds'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/console'
+    | '/api/public/hooks/sync-feeds'
+    | '/api/public/hooks/worker/claim'
+    | '/api/public/hooks/worker/progress'
+    | '/api/public/hooks/worker/result'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/console' | '/api/public/hooks/sync-feeds'
+  to:
+    | '/'
+    | '/auth'
+    | '/console'
+    | '/api/public/hooks/sync-feeds'
+    | '/api/public/hooks/worker/claim'
+    | '/api/public/hooks/worker/progress'
+    | '/api/public/hooks/worker/result'
   id:
     | '__root__'
     | '/'
@@ -72,6 +116,9 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/console'
     | '/api/public/hooks/sync-feeds'
+    | '/api/public/hooks/worker/claim'
+    | '/api/public/hooks/worker/progress'
+    | '/api/public/hooks/worker/result'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -79,6 +126,9 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiPublicHooksSyncFeedsRoute: typeof ApiPublicHooksSyncFeedsRoute
+  ApiPublicHooksWorkerClaimRoute: typeof ApiPublicHooksWorkerClaimRoute
+  ApiPublicHooksWorkerProgressRoute: typeof ApiPublicHooksWorkerProgressRoute
+  ApiPublicHooksWorkerResultRoute: typeof ApiPublicHooksWorkerResultRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -118,6 +168,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksSyncFeedsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/worker/claim': {
+      id: '/api/public/hooks/worker/claim'
+      path: '/api/public/hooks/worker/claim'
+      fullPath: '/api/public/hooks/worker/claim'
+      preLoaderRoute: typeof ApiPublicHooksWorkerClaimRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/worker/progress': {
+      id: '/api/public/hooks/worker/progress'
+      path: '/api/public/hooks/worker/progress'
+      fullPath: '/api/public/hooks/worker/progress'
+      preLoaderRoute: typeof ApiPublicHooksWorkerProgressRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/worker/result': {
+      id: '/api/public/hooks/worker/result'
+      path: '/api/public/hooks/worker/result'
+      fullPath: '/api/public/hooks/worker/result'
+      preLoaderRoute: typeof ApiPublicHooksWorkerResultRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -137,6 +208,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiPublicHooksSyncFeedsRoute: ApiPublicHooksSyncFeedsRoute,
+  ApiPublicHooksWorkerClaimRoute: ApiPublicHooksWorkerClaimRoute,
+  ApiPublicHooksWorkerProgressRoute: ApiPublicHooksWorkerProgressRoute,
+  ApiPublicHooksWorkerResultRoute: ApiPublicHooksWorkerResultRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

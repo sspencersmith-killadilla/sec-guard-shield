@@ -36,6 +36,20 @@
       "when": 1789993560010,
       "tag": "0004_audit_trigger_search_path",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789993878076,
+      "tag": "0005_scan_orchestration",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789993967828,
+      "tag": "0006_system_audit_actor",
+      "breakpoints": true
     }
   ]
 }

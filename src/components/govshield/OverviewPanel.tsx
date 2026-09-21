@@ -5,8 +5,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -16,7 +14,7 @@ import { AlertTriangle, Gauge, ScanLine, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { SEVERITY_ORDER, TREND_DATA, computePosture, severityClasses } from "@/lib/govshield/data";
+import { SEVERITY_ORDER, severityClasses } from "@/lib/govshield/data";
 import { useGovShield } from "@/lib/govshield/state";
 
 const SEV_COLOR: Record<string, string> = {
@@ -36,7 +34,7 @@ const tooltipStyle = {
 };
 
 export function OverviewPanel({ onStartScan }: { onStartScan: () => void }) {
-  const { findings, hasResults, config, feeds } = useGovShield();
+  const { findings, hasResults, config, feeds, posture: scanPosture, trend, selectedScan } = useGovShield();
 
   if (!hasResults) {
     return (
@@ -58,14 +56,20 @@ export function OverviewPanel({ onStartScan }: { onStartScan: () => void }) {
     );
   }
 
-  const posture = computePosture(findings);
+  const posture = scanPosture ?? 0;
   const counts = SEVERITY_ORDER.map((s) => ({
     severity: s,
     count: findings.filter((f) => f.severity === s).length,
   }));
   const kev = findings.filter((f) => f.kev).length;
   const privacy = findings.filter((f) => f.privacyImpact).length;
-  const maxCvss = Math.max(...findings.map((f) => f.cvss31));
+  const maxCvss = findings.length ? Math.max(...findings.map((f) => f.cvss31)) : 0;
+  const moduleCounts = Object.entries(
+    findings.reduce<Record<string, number>>((acc, f) => {
+      acc[f.module] = (acc[f.module] ?? 0) + 1;
+      return acc;
+    }, {}),
+  ).map(([module, count]) => ({ module, count }));
 
   return (
     <div className="space-y-4">
@@ -83,7 +87,8 @@ export function OverviewPanel({ onStartScan }: { onStartScan: () => void }) {
             </p>
             <Progress value={posture} className="mt-3 h-1.5" />
             <p className="mt-3 font-mono text-[11px] text-muted-foreground">
-              Target: {config.value} · {config.mode === "conmon" ? `ConMon ${config.cadence}` : "Standard scan"}
+              Target: {selectedScan?.target_value ?? config.value} ·{" "}
+              {selectedScan?.mode === "conmon" ? `ConMon ${selectedScan.cadence ?? ""}` : "Standard scan"}
             </p>
           </CardContent>
         </Card>
@@ -130,18 +135,16 @@ export function OverviewPanel({ onStartScan }: { onStartScan: () => void }) {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-base uppercase tracking-wider">30-day vulnerability trend</CardTitle>
+            <CardTitle className="text-base uppercase tracking-wider">Posture across recent assessments</CardTitle>
           </CardHeader>
           <CardContent className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={TREND_DATA} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+              <AreaChart data={trend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                 <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} interval={5} />
-                <YAxis tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
                 <Tooltip contentStyle={tooltipStyle} />
-                <Area type="monotone" dataKey="critical" stackId="1" stroke="var(--critical)" fill="var(--critical)" fillOpacity={0.35} />
-                <Area type="monotone" dataKey="high" stackId="1" stroke="var(--high)" fill="var(--high)" fillOpacity={0.3} />
-                <Area type="monotone" dataKey="medium" stackId="1" stroke="var(--medium)" fill="var(--medium)" fillOpacity={0.25} />
+                <Area type="monotone" dataKey="posture" stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.25} />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
@@ -170,17 +173,17 @@ export function OverviewPanel({ onStartScan }: { onStartScan: () => void }) {
 
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-base uppercase tracking-wider">Posture trajectory</CardTitle>
+            <CardTitle className="text-base uppercase tracking-wider">Findings by test module</CardTitle>
           </CardHeader>
           <CardContent className="h-[240px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={TREND_DATA} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+              <BarChart data={moduleCounts} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                 <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} interval={5} />
-                <YAxis domain={[40, 100]} tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
-                <Tooltip contentStyle={tooltipStyle} />
-                <Line type="monotone" dataKey="posture" stroke="var(--primary)" strokeWidth={2} dot={false} />
-              </LineChart>
+                <XAxis dataKey="module" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} />
+                <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "var(--surface-raised)" }} />
+                <Bar dataKey="count" fill="var(--primary)" radius={[2, 2, 0, 0]} />
+              </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
