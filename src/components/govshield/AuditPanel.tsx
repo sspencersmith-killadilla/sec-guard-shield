@@ -19,7 +19,7 @@ const ROLE_MATRIX = [
 ];
 
 export function AuditPanel() {
-  const { auditLog, verifyChain, chainValid, role } = useGovShield();
+  const { auditLog, verifyChain, chainValid, chainTotal, verifying, role } = useGovShield();
 
   return (
     <div className="grid gap-4 xl:grid-cols-4">
@@ -29,14 +29,25 @@ export function AuditPanel() {
             <FileLock2 className="size-4 text-primary" aria-hidden /> Immutable audit log
             <span className="font-mono text-[10px] font-normal text-muted-foreground">NIST AU-2 / AU-9</span>
           </CardTitle>
-          <Button variant="outline" size="sm" className="gap-2 font-mono text-xs uppercase" onClick={verifyChain}>
-            <ShieldCheck className="size-3.5" aria-hidden /> Verify chain
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 font-mono text-xs uppercase"
+            onClick={verifyChain}
+            disabled={verifying}
+          >
+            <ShieldCheck className="size-3.5" aria-hidden /> {verifying ? "Verifying" : "Verify chain"}
           </Button>
         </CardHeader>
         <CardContent>
-          {chainValid && (
+          {chainValid === true && (
             <p className="mb-3 rounded-sm border border-success/40 bg-success/10 px-3 py-2 font-mono text-xs text-success">
-              CHAIN INTACT · {auditLog.length} entries verified · no tamper evidence detected
+              CHAIN INTACT · {chainTotal} entries recomputed server-side · no tamper evidence detected
+            </p>
+          )}
+          {chainValid === false && (
+            <p className="mb-3 rounded-sm border border-critical/40 bg-critical/10 px-3 py-2 font-mono text-xs text-critical">
+              CHAIN BROKEN · digest mismatch detected across {chainTotal} entries · escalate per IR-6
             </p>
           )}
           <div className="max-h-[520px] overflow-auto rounded-sm border border-border">

@@ -1,10 +1,10 @@
-import { ShieldCheck, RefreshCw, CircleDot } from "lucide-react";
+import { ShieldCheck, RefreshCw, CircleDot, LogOut } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useGovShield } from "@/lib/govshield/state";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import type { Role } from "@/lib/govshield/types";
-
-const ROLES: Role[] = ["Admin", "Assessor", "Read-Only Auditor"];
+import { Badge } from "@/components/ui/badge";
 
 function stamp(ms: number) {
   if (!ms) return "--:--:-- UTC";
@@ -12,7 +12,18 @@ function stamp(ms: number) {
 }
 
 export function TopBar() {
-  const { role, setRole, lastSync, syncing, syncNow, canWrite } = useGovShield();
+  const { role, email, lastSync, syncing, syncNow, canWrite, feeds } = useGovShield();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const degraded = feeds.some((f) => f.status === "degraded");
+
+  async function signOut() {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    await supabase.auth.signOut();
+    void navigate({ to: "/auth", replace: true });
+  }
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-surface/95 backdrop-blur">
@@ -36,11 +47,13 @@ export function TopBar() {
             aria-live="polite"
           >
             <CircleDot
-              className={`size-3.5 ${syncing ? "animate-pulse text-medium" : "text-success"}`}
+              className={`size-3.5 ${
+                syncing ? "animate-pulse text-medium" : degraded ? "text-high" : "text-success"
+              }`}
               aria-hidden
             />
             <span className="font-mono text-xs text-muted-foreground">
-              FEEDS {syncing ? "SYNCING" : "OPERATIONAL"} · {stamp(lastSync)}
+              FEEDS {syncing ? "SYNCING" : degraded ? "DEGRADED" : "OPERATIONAL"} · {stamp(lastSync)}
             </span>
           </div>
 
@@ -55,23 +68,23 @@ export function TopBar() {
             Sync now
           </Button>
 
-          <div className="flex items-center gap-2">
-            <label htmlFor="role-scope" className="font-mono text-[11px] uppercase text-muted-foreground">
-              Scope
-            </label>
-            <Select value={role} onValueChange={(v) => setRole(v as Role)}>
-              <SelectTrigger id="role-scope" className="h-9 w-[190px] bg-background font-mono text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ROLES.map((r) => (
-                  <SelectItem key={r} value={r} className="font-mono text-xs">
-                    {r}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex items-center gap-2 rounded-sm border border-border bg-background px-3 py-1.5">
+            <span className="max-w-[180px] truncate font-mono text-xs text-muted-foreground">{email || "—"}</span>
+            <Badge variant="outline" className="font-mono text-[10px] uppercase">
+              {role}
+            </Badge>
           </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={signOut}
+            className="gap-2 font-mono text-xs uppercase"
+            aria-label="Sign out"
+          >
+            <LogOut className="size-3.5" aria-hidden />
+            Sign out
+          </Button>
         </div>
       </div>
     </header>

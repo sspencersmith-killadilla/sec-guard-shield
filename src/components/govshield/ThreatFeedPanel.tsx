@@ -21,8 +21,20 @@ function countdown(ms: number) {
 }
 
 export function ThreatFeedPanel() {
-  const { feeds, plugins, autoUpdate, toggleAutoUpdate, syncing, syncNow, lastSync, nextSyncIn, canWrite } =
-    useGovShield();
+  const {
+    feeds,
+    feedRows,
+    plugins,
+    autoUpdate,
+    toggleAutoUpdate,
+    syncing,
+    syncNow,
+    lastSync,
+    nextSyncIn,
+    canWrite,
+    feedsLoading,
+  } = useGovShield();
+  const errorsById = new Map(feedRows.map((f) => [f.id, f.last_error]));
 
   return (
     <div className="grid gap-4 xl:grid-cols-3">
@@ -32,10 +44,13 @@ export function ThreatFeedPanel() {
             <RadioTower className="size-4 text-primary" aria-hidden /> Upstream threat feeds
           </CardTitle>
           <Badge variant="outline" className="font-mono text-[10px] uppercase">
-            4 sources
+            {feeds.length} sources
           </Badge>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2">
+          {feedsLoading && (
+            <p className="font-mono text-xs text-muted-foreground">Loading feed registry…</p>
+          )}
           {feeds.map((feed) => (
             <div key={feed.id} className="rounded-sm border border-border bg-background p-4">
               <div className="flex items-start justify-between gap-2">
@@ -45,7 +60,11 @@ export function ThreatFeedPanel() {
                 </div>
                 <span
                   className={`mt-1 size-2.5 shrink-0 rounded-full ${
-                    feed.status === "syncing" ? "animate-pulse bg-medium" : "bg-success"
+                    feed.status === "syncing"
+                      ? "animate-pulse bg-medium"
+                      : feed.status === "degraded"
+                        ? "bg-high"
+                        : "bg-success"
                   }`}
                   aria-label={feed.status}
                 />
@@ -64,6 +83,11 @@ export function ThreatFeedPanel() {
                   <dd className="text-foreground">{feed.latencyMs}ms</dd>
                 </div>
               </dl>
+              {errorsById.get(feed.id) && (
+                <p className="mt-3 break-words rounded-sm border border-high/40 bg-high/10 px-2 py-1 font-mono text-[10px] text-high">
+                  {errorsById.get(feed.id)}
+                </p>
+              )}
             </div>
           ))}
         </CardContent>

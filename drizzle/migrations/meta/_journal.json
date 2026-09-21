@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789992716454,
+      "tag": "0000_govshield_core_auth_feeds",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789993480208,
+      "tag": "0001_enable_cron_net",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789993502462,
+      "tag": "0002_cron_config_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789993541602,
+      "tag": "0003_harden_function_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789993560010,
+      "tag": "0004_audit_trigger_search_path",
+      "breakpoints": true
+    }
+  ]
+}

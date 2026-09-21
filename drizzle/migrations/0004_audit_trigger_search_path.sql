@@ -1,0 +1,1 @@
+ALTER FUNCTION public.audit_log_immutable() SET search_path = public;
