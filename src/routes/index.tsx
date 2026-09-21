@@ -1,24 +1,100 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { GovShieldProvider, useGovShield } from "@/lib/govshield/state";
+import { TopBar } from "@/components/govshield/TopBar";
+import { ThreatFeedPanel } from "@/components/govshield/ThreatFeedPanel";
+import { ScanPanel } from "@/components/govshield/ScanPanel";
+import { FindingsPanel } from "@/components/govshield/FindingsPanel";
+import { AuditPanel } from "@/components/govshield/AuditPanel";
+import { OverviewPanel } from "@/components/govshield/OverviewPanel";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
+const TITLE = "GovShield SecOps — FedRAMP-Aligned Security Testing & Compliance Console";
+const DESCRIPTION =
+  "Centralized security testing and compliance auditing for web apps, APIs, code, and cloud workloads — with live CISA KEV, NVD, MITRE ATT&CK and EPSS threat feeds mapped to NIST SP 800-53 and FedRAMP baselines.";
+
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: TITLE },
+      { name: "description", content: DESCRIPTION },
+      { property: "og:title", content: TITLE },
+      { property: "og:description", content: DESCRIPTION },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: GovShieldPage,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+function GovShieldPage() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <GovShieldProvider>
+      <Console />
+    </GovShieldProvider>
+  );
+}
+
+const TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "feeds", label: "Threat Feeds" },
+  { id: "scan", label: "New Scan" },
+  { id: "findings", label: "Findings" },
+  { id: "audit", label: "Audit Log" },
+];
+
+function Console() {
+  const [tab, setTab] = useState("overview");
+  const { hasResults, scanning } = useGovShield();
+
+  return (
+    <div className="min-h-screen bg-background">
+      <TopBar />
+      <main className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6">
+        <Tabs value={tab} onValueChange={setTab} className="space-y-6">
+          <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-sm border border-border bg-surface p-1">
+            {TABS.map((t) => (
+              <TabsTrigger
+                key={t.id}
+                value={t.id}
+                className="rounded-sm px-4 py-2 font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+              >
+                {t.label}
+                {t.id === "findings" && hasResults && (
+                  <span className="ml-2 rounded-sm bg-critical/20 px-1.5 text-[10px] text-critical">14</span>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          <TabsContent value="overview" className="mt-0">
+            <OverviewPanel onStartScan={() => setTab("scan")} />
+          </TabsContent>
+          <TabsContent value="feeds" className="mt-0">
+            <ThreatFeedPanel />
+          </TabsContent>
+          <TabsContent value="scan" className="mt-0">
+            <ScanPanel onComplete={() => window.setTimeout(() => setTab("findings"), 4100)} />
+          </TabsContent>
+          <TabsContent value="findings" className="mt-0">
+            {hasResults ? (
+              <FindingsPanel />
+            ) : (
+              <p className="rounded-sm border border-border bg-surface p-10 text-center font-mono text-sm text-muted-foreground">
+                {scanning ? "Assessment in progress…" : "No findings on record. Execute a scan to populate results."}
+              </p>
+            )}
+          </TabsContent>
+          <TabsContent value="audit" className="mt-0">
+            <AuditPanel />
+          </TabsContent>
+        </Tabs>
+      </main>
+      <footer className="border-t border-border bg-surface">
+        <div className="mx-auto max-w-[1600px] px-4 py-4 font-mono text-[11px] uppercase tracking-wider text-muted-foreground sm:px-6">
+          GovShield SecOps · Demonstration data · NIST SP 800-53 Rev.5 · FedRAMP Moderate/High · FIPS 140-3 · NIST Privacy Framework 1.0
+        </div>
+      </footer>
     </div>
   );
 }
