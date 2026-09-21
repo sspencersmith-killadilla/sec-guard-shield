@@ -1,0 +1,15 @@
+# GovShield scanner worker — Fly.io machine definition.
+# Rename `app` to something unique before the first deploy.
+app = "govshield-scanner"
+primary_region = "dfw"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# No inbound HTTP: the worker dials out to the GovShield control plane.
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "4gb"
+
+[env]
+  GOVSHIELD_POLL_MS = "5000"
