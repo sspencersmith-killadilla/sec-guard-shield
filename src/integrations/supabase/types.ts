@@ -656,6 +656,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_oversight: { Args: { _user_id: string }; Returns: boolean }
       reap_stalled_scans: {
         Args: { _timeout_minutes?: number }
         Returns: number
