@@ -22,6 +22,13 @@
       "when": 1789993502462,
       "tag": "0002_cron_config_table",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789993541602,
+      "tag": "0003_harden_function_grants",
+      "breakpoints": true
     }
   ]
 }
