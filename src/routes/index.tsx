@@ -1,17 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { GovShieldProvider, useGovShield } from "@/lib/govshield/state";
-import { TopBar } from "@/components/govshield/TopBar";
-import { ThreatFeedPanel } from "@/components/govshield/ThreatFeedPanel";
-import { ScanPanel } from "@/components/govshield/ScanPanel";
-import { FindingsPanel } from "@/components/govshield/FindingsPanel";
-import { AuditPanel } from "@/components/govshield/AuditPanel";
-import { OverviewPanel } from "@/components/govshield/OverviewPanel";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { ShieldCheck, RadioTower, FileLock2, Workflow, ArrowRight } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 
 const TITLE = "GovShield SecOps — FedRAMP-Aligned Security Testing & Compliance Console";
 const DESCRIPTION =
-  "Centralized security testing and compliance auditing for web apps, APIs, code, and cloud workloads — with live CISA KEV, NVD, MITRE ATT&CK and EPSS threat feeds mapped to NIST SP 800-53 and FedRAMP baselines.";
+  "Centralized security testing and compliance auditing for web apps, APIs, code and cloud workloads — with live CISA KEV, NVD, MITRE ATT&CK and EPSS intelligence mapped to NIST SP 800-53 and FedRAMP baselines.";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -24,75 +19,106 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: GovShieldPage,
+  component: LandingPage,
 });
 
-function GovShieldPage() {
-  return (
-    <GovShieldProvider>
-      <Console />
-    </GovShieldProvider>
-  );
-}
-
-const TABS = [
-  { id: "overview", label: "Overview" },
-  { id: "feeds", label: "Threat Feeds" },
-  { id: "scan", label: "New Scan" },
-  { id: "findings", label: "Findings" },
-  { id: "audit", label: "Audit Log" },
+const PILLARS = [
+  {
+    icon: RadioTower,
+    title: "Live threat intelligence",
+    body: "CISA KEV, NIST NVD 2.0, FIRST EPSS and MITRE ATT&CK are polled on a schedule and stored, with real sync timestamps and per-run telemetry.",
+  },
+  {
+    icon: FileLock2,
+    title: "Tamper-evident ledger",
+    body: "Every privileged action is appended to a hash-chained log the database itself refuses to update or delete, supporting NIST AU-2 and AU-9.",
+  },
+  {
+    icon: Workflow,
+    title: "Control crosswalk",
+    body: "Findings correlate to NIST SP 800-53 Rev. 5 controls, FedRAMP Moderate and High baselines, FIPS 140-3 flags and Privacy Framework categories.",
+  },
 ];
 
-function Console() {
-  const [tab, setTab] = useState("overview");
-  const { hasResults, scanning } = useGovShield();
+function LandingPage() {
+  const [signedIn, setSignedIn] = useState(false);
+
+  useEffect(() => {
+    void supabase.auth.getSession().then(({ data }) => setSignedIn(Boolean(data.session)));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setSignedIn(Boolean(session)));
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
-      <TopBar />
-      <main className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6">
-        <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-          <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-sm border border-border bg-surface p-1">
-            {TABS.map((t) => (
-              <TabsTrigger
-                key={t.id}
-                value={t.id}
-                className="rounded-sm px-4 py-2 font-mono text-xs uppercase tracking-wider data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-              >
-                {t.label}
-                {t.id === "findings" && hasResults && (
-                  <span className="ml-2 rounded-sm bg-critical/20 px-1.5 text-[10px] text-critical">14</span>
-                )}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+      <div className="h-1 w-full gov-stripe" aria-hidden />
+      <header className="border-b border-border bg-surface">
+        <div className="mx-auto flex max-w-[1200px] items-center gap-3 px-4 py-4 sm:px-6">
+          <div className="flex size-9 items-center justify-center rounded-sm border border-primary/40 bg-primary/10">
+            <ShieldCheck className="size-5 text-primary" aria-hidden />
+          </div>
+          <div>
+            <p className="text-lg font-semibold uppercase tracking-[0.18em]">GovShield SecOps</p>
+            <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+              FedRAMP-aligned assessment platform
+            </p>
+          </div>
+          <div className="ml-auto">
+            <Button asChild size="sm" className="gap-2 font-mono text-xs uppercase">
+              <Link to={signedIn ? "/console" : "/auth"}>
+                {signedIn ? "Open console" : "Sign in"}
+                <ArrowRight className="size-3.5" aria-hidden />
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </header>
 
-          <TabsContent value="overview" className="mt-0">
-            <OverviewPanel onStartScan={() => setTab("scan")} />
-          </TabsContent>
-          <TabsContent value="feeds" className="mt-0">
-            <ThreatFeedPanel />
-          </TabsContent>
-          <TabsContent value="scan" className="mt-0">
-            <ScanPanel onComplete={() => window.setTimeout(() => setTab("findings"), 4100)} />
-          </TabsContent>
-          <TabsContent value="findings" className="mt-0">
-            {hasResults ? (
-              <FindingsPanel />
-            ) : (
-              <p className="rounded-sm border border-border bg-surface p-10 text-center font-mono text-sm text-muted-foreground">
-                {scanning ? "Assessment in progress…" : "No findings on record. Execute a scan to populate results."}
-              </p>
-            )}
-          </TabsContent>
-          <TabsContent value="audit" className="mt-0">
-            <AuditPanel />
-          </TabsContent>
-        </Tabs>
+      <main className="mx-auto max-w-[1200px] px-4 py-16 sm:px-6">
+        <section className="max-w-3xl">
+          <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-primary">
+            Continuous authorization support
+          </p>
+          <h1 className="mt-4 text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
+            Security testing and compliance evidence, held to government standards.
+          </h1>
+          <p className="mt-5 text-base leading-relaxed text-muted-foreground">
+            GovShield evaluates web applications, APIs, source code and cloud workloads against modern government
+            security standards, while staying aligned with evolving global threat intelligence.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Button asChild className="gap-2 font-mono uppercase">
+              <Link to={signedIn ? "/console" : "/auth"}>
+                {signedIn ? "Open console" : "Request access"}
+                <ArrowRight className="size-4" aria-hidden />
+              </Link>
+            </Button>
+          </div>
+        </section>
+
+        <section className="mt-16 grid gap-4 md:grid-cols-3">
+          {PILLARS.map((p) => (
+            <div key={p.title} className="rounded-sm border border-border bg-surface p-6">
+              <p.icon className="size-5 text-primary" aria-hidden />
+              <h2 className="mt-4 text-base font-semibold uppercase tracking-wider">{p.title}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{p.body}</p>
+            </div>
+          ))}
+        </section>
+
+        <section className="mt-12 rounded-sm border border-border bg-surface p-6">
+          <h2 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Current capability</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+            Accounts, role scoping, the audit ledger and the threat intelligence pipeline run against live data. Scan
+            execution against your own repositories, containers and running sites is the next stage of the build and is
+            still represented with sample findings.
+          </p>
+        </section>
       </main>
+
       <footer className="border-t border-border bg-surface">
-        <div className="mx-auto max-w-[1600px] px-4 py-4 font-mono text-[11px] uppercase tracking-wider text-muted-foreground sm:px-6">
-          GovShield SecOps · Demonstration data · NIST SP 800-53 Rev.5 · FedRAMP Moderate/High · FIPS 140-3 · NIST Privacy Framework 1.0
+        <div className="mx-auto max-w-[1200px] px-4 py-6 font-mono text-[11px] uppercase tracking-wider text-muted-foreground sm:px-6">
+          NIST SP 800-53 Rev.5 · FedRAMP Moderate/High · FIPS 140-3 · NIST Privacy Framework 1.0 · OSCAL
         </div>
       </footer>
     </div>

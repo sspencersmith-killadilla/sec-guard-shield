@@ -8,7 +8,22 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { FINDINGS, INITIAL_FEEDS, INITIAL_PLUGINS, SCAN_STAGES } from "./data";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { FINDINGS, INITIAL_PLUGINS, SCAN_STAGES } from "./data";
+import {
+  ROLE_LABEL,
+  bootstrapIdentity,
+  listAudit,
+  listFeedState,
+  recordAudit,
+  setAutoUpdate as setAutoUpdateFn,
+  syncFeedsNow,
+  verifyAuditChain,
+  type AppRole,
+  type AuditRow,
+  type FeedRow,
+} from "./platform.functions";
 import type {
   AuditEntry,
   Finding,
@@ -20,20 +35,6 @@ import type {
   ThreatFeed,
 } from "./types";
 
-const SYNC_INTERVAL_MS = 15 * 60 * 1000;
-
-/** Deterministic, non-cryptographic digest used to simulate tamper-evident chaining. */
-function pseudoHash(input: string): string {
-  let h1 = 0x811c9dc5;
-  let h2 = 0x01000193;
-  for (let i = 0; i < input.length; i++) {
-    h1 = (h1 ^ input.charCodeAt(i)) * 16777619;
-    h2 = (h2 + input.charCodeAt(i) * (i + 7)) ^ (h1 >>> 3);
-  }
-  const part = (n: number) => (n >>> 0).toString(16).padStart(8, "0");
-  return `${part(h1)}${part(h2)}${part(h1 ^ h2)}${part(h1 + h2)}`;
-}
-
 export interface ScanConfig {
   target: TargetType;
   value: string;
@@ -43,10 +44,14 @@ export interface ScanConfig {
 }
 
 interface GovShieldState {
+  identityLoading: boolean;
+  email: string;
+  appRole: AppRole;
   role: Role;
-  setRole: (role: Role) => void;
   canWrite: boolean;
   feeds: ThreatFeed[];
+  feedRows: FeedRow[];
+  counts: { kev: number; epss: number; nvd: number; mitre: number };
   plugins: ScannerPlugin[];
   autoUpdate: boolean;
   toggleAutoUpdate: () => void;
@@ -54,6 +59,7 @@ interface GovShieldState {
   syncNow: () => void;
   lastSync: number;
   nextSyncIn: number;
+  feedsLoading: boolean;
   config: ScanConfig;
   updateConfig: (patch: Partial<ScanConfig>) => void;
   scanStage: number;
@@ -65,21 +71,69 @@ interface GovShieldState {
   auditLog: AuditEntry[];
   log: (action: string, target: string) => void;
   chainValid: boolean | null;
+  chainTotal: number;
   verifyChain: () => void;
+  verifying: boolean;
 }
 
 const Ctx = createContext<GovShieldState | null>(null);
 
-const GENESIS = "0".repeat(32);
+function toFeed(row: FeedRow): ThreatFeed {
+  return {
+    id: row.id as ThreatFeed["id"],
+    name: row.name,
+    source: new URL(row.source).hostname,
+    records: row.record_count,
+    lastSynced: row.last_synced_at ? Date.parse(row.last_synced_at) : 0,
+    status:
+      row.status === "syncing" ? "syncing" : row.status === "degraded" ? "degraded" : "operational",
+    latencyMs: row.latency_ms ?? 0,
+  };
+}
+
+function toAuditEntry(row: AuditRow): AuditEntry {
+  return {
+    id: `AU-${String(row.seq).padStart(5, "0")}`,
+    timestamp: Date.parse(row.occurred_at),
+    actor: row.actor_email,
+    role: row.actor_role ? ROLE_LABEL[row.actor_role] : "Read-Only Auditor",
+    action: row.action,
+    target: row.target,
+    prevHash: row.prev_hash,
+    hash: row.hash,
+  };
+}
 
 export function GovShieldProvider({ children }: { children: ReactNode }) {
-  const [role, setRoleState] = useState<Role>("Admin");
-  const [feeds, setFeeds] = useState<ThreatFeed[]>(INITIAL_FEEDS);
-  const [plugins, setPlugins] = useState<ScannerPlugin[]>(INITIAL_PLUGINS);
-  const [autoUpdate, setAutoUpdate] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState(0);
+  const queryClient = useQueryClient();
+  const bootstrap = useServerFn(bootstrapIdentity);
+  const fetchFeeds = useServerFn(listFeedState);
+  const fetchAudit = useServerFn(listAudit);
+  const appendAudit = useServerFn(recordAudit);
+  const runSync = useServerFn(syncFeedsNow);
+  const toggleAuto = useServerFn(setAutoUpdateFn);
+  const verify = useServerFn(verifyAuditChain);
+
+  const identity = useQuery({
+    queryKey: ["govshield", "identity"],
+    queryFn: () => bootstrap({ data: undefined as never }),
+    staleTime: 5 * 60_000,
+  });
+
+  const feedState = useQuery({
+    queryKey: ["govshield", "feeds"],
+    queryFn: () => fetchFeeds(),
+    refetchInterval: 30_000,
+  });
+
+  const audit = useQuery({
+    queryKey: ["govshield", "audit"],
+    queryFn: () => fetchAudit(),
+  });
+
   const [now, setNow] = useState(0);
+  const [chainValid, setChainValid] = useState<boolean | null>(null);
+  const [chainTotal, setChainTotal] = useState(0);
   const [config, setConfig] = useState<ScanConfig>({
     target: "dast",
     value: "https://portal.agency.gov",
@@ -89,83 +143,62 @@ export function GovShieldProvider({ children }: { children: ReactNode }) {
   });
   const [scanStage, setScanStage] = useState(-1);
   const [hasResults, setHasResults] = useState(false);
-  const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
-  const [chainValid, setChainValid] = useState<boolean | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  const log = useCallback((action: string, target: string) => {
-    setAuditLog((prev) => {
-      const prevHash = prev[0]?.hash ?? GENESIS;
-      const timestamp = Date.now();
-      const id = `AU-${(prev.length + 1).toString().padStart(4, "0")}`;
-      const actor = "s.smith@agency.gov";
-      const entry: AuditEntry = {
-        id,
-        timestamp,
-        actor,
-        role,
-        action,
-        target,
-        prevHash,
-        hash: pseudoHash(`${id}|${timestamp}|${actor}|${action}|${target}|${prevHash}`),
-      };
-      return [entry, ...prev].slice(0, 80);
-    });
-  }, [role]);
-
-  // Clock + initial sync timestamps (client-only to avoid hydration drift).
   useEffect(() => {
-    const t = Date.now();
-    setNow(t);
-    setLastSync(t - 4 * 60 * 1000);
-    setFeeds((prev) => prev.map((f, i) => ({ ...f, lastSynced: t - (4 + i) * 60 * 1000 })));
-    log("SESSION_ESTABLISHED", "govshield.console");
+    setNow(Date.now());
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
-  const syncNow = useCallback(() => {
-    setSyncing(true);
-    setFeeds((prev) => prev.map((f) => ({ ...f, status: "syncing" as const })));
-    log("THREAT_FEED_SYNC_INITIATED", "kev,nvd,mitre,epss");
-    const t = setTimeout(() => {
-      const stamp = Date.now();
-      setFeeds((prev) =>
-        prev.map((f) => ({
-          ...f,
-          status: "operational" as const,
-          lastSynced: stamp,
-          records: f.records + Math.floor(3 + Math.random() * 40),
-          latencyMs: 280 + Math.floor(Math.random() * 700),
-        })),
-      );
-      const sig = new Date(stamp).toISOString().slice(0, 10).replace(/-/g, "") ;
-      setPlugins((prev) =>
-        prev.map((p) => ({
-          ...p,
-          signature: `${sig.slice(0, 4)}.${sig.slice(4, 6)}.${sig.slice(6, 8)}-${new Date(stamp)
-            .toISOString()
-            .slice(11, 16)
-            .replace(":", "")}`,
-        })),
-      );
-      setLastSync(stamp);
-      setSyncing(false);
-      log("THREAT_FEED_SYNC_COMPLETED", "signatures.hot-reloaded");
-    }, 1800);
-    timers.current.push(t);
-  }, [log]);
+  const invalidateAudit = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["govshield", "audit"] });
+  }, [queryClient]);
 
-  // Auto-sync scheduler
+  const log = useCallback(
+    (action: string, target: string) => {
+      appendAudit({ data: { action, target } })
+        .then(invalidateAudit)
+        .catch(() => undefined);
+    },
+    [appendAudit, invalidateAudit],
+  );
+
+  // One session entry per authenticated console load.
+  const sessionLogged = useRef(false);
   useEffect(() => {
-    if (!autoUpdate || !lastSync) return;
-    const due = lastSync + SYNC_INTERVAL_MS - Date.now();
-    const t = setTimeout(() => syncNow(), Math.max(1000, due));
-    return () => clearTimeout(t);
-  }, [autoUpdate, lastSync, syncNow]);
+    if (identity.data && !sessionLogged.current) {
+      sessionLogged.current = true;
+      log("SESSION_ESTABLISHED", "govshield.console");
+    }
+  }, [identity.data, log]);
+
+  const syncMutation = useMutation({
+    mutationFn: () => runSync({ data: {} }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["govshield", "feeds"] });
+      invalidateAudit();
+    },
+  });
+
+  const autoMutation = useMutation({
+    mutationFn: (enabled: boolean) => toggleAuto({ data: { enabled } }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["govshield", "feeds"] });
+      invalidateAudit();
+    },
+  });
+
+  const verifyMutation = useMutation({
+    mutationFn: () => verify({ data: undefined as never }),
+    onSuccess: (res) => {
+      setChainValid(res.valid);
+      setChainTotal(res.total);
+      invalidateAudit();
+    },
+  });
 
   const startScan = useCallback(() => {
     setHasResults(false);
@@ -189,32 +222,52 @@ export function GovShieldProvider({ children }: { children: ReactNode }) {
     log("RESULTS_CLEARED", "assessment.workspace");
   }, [log]);
 
+  const feedRows = feedState.data?.feeds ?? [];
+  const feeds = useMemo(() => feedRows.map(toFeed), [feedRows]);
+  const appRole: AppRole = identity.data?.role ?? "auditor";
+  const autoUpdate = feedRows.length > 0 && feedRows.every((f) => f.auto_update);
+  const syncing = syncMutation.isPending || feedRows.some((f) => f.status === "syncing");
+  const lastSync = feeds.reduce((max, f) => Math.max(max, f.lastSynced), 0);
+
+  const nextSyncIn = useMemo(() => {
+    if (!autoUpdate || !now) return 0;
+    const due = feedRows
+      .map((f) => (f.last_synced_at ? Date.parse(f.last_synced_at) + f.cadence_minutes * 60_000 : now))
+      .filter((t) => Number.isFinite(t));
+    if (!due.length) return 0;
+    return Math.max(0, Math.min(...due) - now);
+  }, [autoUpdate, feedRows, now]);
+
+  // Signature version reflects the newest ingested dataset, not a timer.
+  const plugins = useMemo<ScannerPlugin[]>(() => {
+    if (!lastSync) return INITIAL_PLUGINS;
+    const d = new Date(lastSync).toISOString();
+    const sig = `${d.slice(0, 4)}.${d.slice(5, 7)}.${d.slice(8, 10)}-${d.slice(11, 13)}${d.slice(14, 16)}`;
+    return INITIAL_PLUGINS.map((p) => ({ ...p, signature: sig }));
+  }, [lastSync]);
+
+  const auditLog = useMemo(() => (audit.data ?? []).map(toAuditEntry), [audit.data]);
+
   const value: GovShieldState = useMemo(
     () => ({
-      role,
-      setRole: (r) => {
-        setRoleState(r);
-        log("ROLE_SCOPE_CHANGED", r);
-      },
-      canWrite: role !== "Read-Only Auditor",
+      identityLoading: identity.isLoading,
+      email: identity.data?.email ?? "",
+      appRole,
+      role: ROLE_LABEL[appRole],
+      canWrite: appRole !== "auditor",
       feeds,
+      feedRows,
+      counts: feedState.data?.counts ?? { kev: 0, epss: 0, nvd: 0, mitre: 0 },
       plugins,
       autoUpdate,
-      toggleAutoUpdate: () => {
-        setAutoUpdate((v) => {
-          log("AUTO_UPDATE_RULES_TOGGLED", v ? "disabled" : "enabled");
-          return !v;
-        });
-      },
+      toggleAutoUpdate: () => autoMutation.mutate(!autoUpdate),
       syncing,
-      syncNow,
+      syncNow: () => syncMutation.mutate(),
       lastSync,
-      nextSyncIn: autoUpdate && lastSync && now ? Math.max(0, lastSync + SYNC_INTERVAL_MS - now) : 0,
+      nextSyncIn,
+      feedsLoading: feedState.isLoading,
       config,
-      updateConfig: (patch) => {
-        setConfig((c) => ({ ...c, ...patch }));
-        log("SCAN_CONFIGURATION_UPDATED", Object.keys(patch).join(","));
-      },
+      updateConfig: (patch) => setConfig((c) => ({ ...c, ...patch })),
       scanStage,
       scanning: scanStage >= 0,
       hasResults,
@@ -224,20 +277,25 @@ export function GovShieldProvider({ children }: { children: ReactNode }) {
       auditLog,
       log,
       chainValid,
-      verifyChain: () => {
-        setChainValid(true);
-        log("AUDIT_CHAIN_VERIFIED", "sha-256 chain intact");
-      },
+      chainTotal,
+      verifyChain: () => verifyMutation.mutate(),
+      verifying: verifyMutation.isPending,
     }),
     [
-      role,
+      identity.isLoading,
+      identity.data,
+      appRole,
       feeds,
+      feedRows,
+      feedState.data,
+      feedState.isLoading,
       plugins,
       autoUpdate,
+      autoMutation,
       syncing,
-      syncNow,
+      syncMutation,
       lastSync,
-      now,
+      nextSyncIn,
       config,
       scanStage,
       hasResults,
@@ -246,6 +304,8 @@ export function GovShieldProvider({ children }: { children: ReactNode }) {
       auditLog,
       log,
       chainValid,
+      chainTotal,
+      verifyMutation,
     ],
   );
 
@@ -257,5 +317,3 @@ export function useGovShield() {
   if (!ctx) throw new Error("useGovShield must be used within GovShieldProvider");
   return ctx;
 }
-
-export { pseudoHash };

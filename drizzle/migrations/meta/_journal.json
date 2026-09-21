@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789992716454,
+      "tag": "0000_govshield_core_auth_feeds",
+      "breakpoints": true
+    }
+  ]
+}
