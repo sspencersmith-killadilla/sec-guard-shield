@@ -10,7 +10,7 @@ import {
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { FINDINGS, INITIAL_PLUGINS, SCAN_STAGES } from "./data";
+import { INITIAL_PLUGINS } from "./data";
 import {
   ROLE_LABEL,
   bootstrapIdentity,
@@ -24,13 +24,28 @@ import {
   type AuditRow,
   type FeedRow,
 } from "./platform.functions";
+import {
+  cancelScan as cancelScanFn,
+  createScan,
+  getScan,
+  issueWorkerKey as issueWorkerKeyFn,
+  listScans,
+  listWorkers,
+  revokeWorker as revokeWorkerFn,
+  type FindingRow,
+  type ScanEventRow,
+  type ScanRow,
+  type WorkerRow,
+} from "./scans.functions";
 import type {
   AuditEntry,
+  ControlCoverage,
   Finding,
   ModuleKey,
   Role,
   ScanMode,
   ScannerPlugin,
+  Severity,
   TargetType,
   ThreatFeed,
 } from "./types";
@@ -41,7 +56,10 @@ export interface ScanConfig {
   modules: ModuleKey[];
   mode: ScanMode;
   cadence: string;
+  authorized: boolean;
 }
+
+const ACTIVE_STATUSES = new Set(["queued", "claimed", "running"]);
 
 interface GovShieldState {
   identityLoading: boolean;
@@ -49,6 +67,7 @@ interface GovShieldState {
   appRole: AppRole;
   role: Role;
   canWrite: boolean;
+  isAdmin: boolean;
   feeds: ThreatFeed[];
   feedRows: FeedRow[];
   counts: { kev: number; epss: number; nvd: number; mitre: number };
@@ -62,12 +81,27 @@ interface GovShieldState {
   feedsLoading: boolean;
   config: ScanConfig;
   updateConfig: (patch: Partial<ScanConfig>) => void;
-  scanStage: number;
+  scans: ScanRow[];
+  selectedScan: ScanRow | null;
+  selectScan: (id: string) => void;
+  scanEvents: ScanEventRow[];
   scanning: boolean;
-  hasResults: boolean;
+  scanProgress: number;
+  scanStageLabel: string;
+  scanError: string | null;
+  queueError: string | null;
   startScan: () => void;
+  cancelScan: () => void;
   resetScan: () => void;
+  hasResults: boolean;
   findings: Finding[];
+  findingsLoading: boolean;
+  posture: number | null;
+  controlCoverage: ControlCoverage[];
+  trend: { day: string; posture: number; critical: number; high: number }[];
+  workers: WorkerRow[];
+  issueWorkerKey: (name: string, capabilities: string[]) => Promise<{ workerId: string; key: string }>;
+  revokeWorker: (workerId: string) => void;
   auditLog: AuditEntry[];
   log: (action: string, target: string) => void;
   chainValid: boolean | null;
@@ -104,6 +138,53 @@ function toAuditEntry(row: AuditRow): AuditEntry {
   };
 }
 
+function toFinding(row: FindingRow): Finding {
+  return {
+    id: row.ref,
+    title: row.title,
+    severity: row.severity as Severity,
+    module: row.module as ModuleKey,
+    target: row.target_type as TargetType,
+    epss: Number(row.epss),
+    cvss31: Number(row.cvss31),
+    cvss40: Number(row.cvss40),
+    cvssVector: row.cvss_vector ?? "",
+    cve: row.cve,
+    kev: row.kev,
+    nistControls: row.nist_controls,
+    fedrampBaseline: row.fedramp_baseline === "High" ? "High" : "Moderate",
+    fips1403: row.fips1403,
+    privacyImpact: row.privacy_impact,
+    privacyCategory: row.privacy_category,
+    location: row.location,
+    description: row.description,
+    remediation: row.remediation,
+    remediationCode: row.remediation_code ?? "",
+    verification: row.verification,
+  };
+}
+
+const CONTROL_TITLES: Record<string, { family: string; title: string }> = {
+  "SI-2": { family: "System and Information Integrity", title: "Flaw Remediation" },
+  "SI-3": { family: "System and Information Integrity", title: "Malicious Code Protection" },
+  "SI-10": { family: "System and Information Integrity", title: "Information Input Validation" },
+  "SI-11": { family: "System and Information Integrity", title: "Error Handling" },
+  "RA-5": { family: "Risk Assessment", title: "Vulnerability Monitoring and Scanning" },
+  "SC-7": { family: "System and Communications Protection", title: "Boundary Protection" },
+  "SC-8": { family: "System and Communications Protection", title: "Transmission Confidentiality" },
+  "SC-12": { family: "System and Communications Protection", title: "Cryptographic Key Management" },
+  "SC-13": { family: "System and Communications Protection", title: "Cryptographic Protection" },
+  "SC-28": { family: "System and Communications Protection", title: "Protection of Information at Rest" },
+  "AC-3": { family: "Access Control", title: "Access Enforcement" },
+  "CM-6": { family: "Configuration Management", title: "Configuration Settings" },
+  "CM-7": { family: "Configuration Management", title: "Least Functionality" },
+  "CM-8": { family: "Configuration Management", title: "System Component Inventory" },
+  "IA-5": { family: "Identification and Authentication", title: "Authenticator Management" },
+  "AU-9": { family: "Audit and Accountability", title: "Protection of Audit Information" },
+  "SA-11": { family: "System and Services Acquisition", title: "Developer Testing and Evaluation" },
+  "PT-2": { family: "Personally Identifiable Information Processing", title: "Authority to Process PII" },
+};
+
 export function GovShieldProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const bootstrap = useServerFn(bootstrapIdentity);
@@ -113,6 +194,13 @@ export function GovShieldProvider({ children }: { children: ReactNode }) {
   const runSync = useServerFn(syncFeedsNow);
   const toggleAuto = useServerFn(setAutoUpdateFn);
   const verify = useServerFn(verifyAuditChain);
+  const queueScan = useServerFn(createScan);
+  const fetchScans = useServerFn(listScans);
+  const fetchScan = useServerFn(getScan);
+  const abortScan = useServerFn(cancelScanFn);
+  const fetchWorkers = useServerFn(listWorkers);
+  const mintWorker = useServerFn(issueWorkerKeyFn);
+  const revoke = useServerFn(revokeWorkerFn);
 
   const identity = useQuery({
     queryKey: ["govshield", "identity"],
@@ -131,27 +219,53 @@ export function GovShieldProvider({ children }: { children: ReactNode }) {
     queryFn: () => fetchAudit(),
   });
 
+  const scansQuery = useQuery({
+    queryKey: ["govshield", "scans"],
+    queryFn: () => fetchScans(),
+    refetchInterval: (query) =>
+      (query.state.data ?? []).some((s) => ACTIVE_STATUSES.has(s.status)) ? 2500 : 20_000,
+  });
+
+  const workersQuery = useQuery({
+    queryKey: ["govshield", "workers"],
+    queryFn: () => fetchWorkers(),
+    refetchInterval: 20_000,
+  });
+
   const [now, setNow] = useState(0);
   const [chainValid, setChainValid] = useState<boolean | null>(null);
   const [chainTotal, setChainTotal] = useState(0);
+  const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
+  const [queueError, setQueueError] = useState<string | null>(null);
   const [config, setConfig] = useState<ScanConfig>({
-    target: "dast",
-    value: "https://portal.agency.gov",
+    target: "sast",
+    value: "",
     modules: ["owasp", "misconfig", "secrets", "kev", "deps"],
     mode: "standard",
     cadence: "Every 24 hours",
+    authorized: false,
   });
-  const [scanStage, setScanStage] = useState(-1);
-  const [hasResults, setHasResults] = useState(false);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const scans = useMemo(() => scansQuery.data ?? [], [scansQuery.data]);
+
+  // Follow the newest scan until the operator picks a different one.
+  const effectiveScanId = selectedScanId ?? scans[0]?.id ?? null;
+
+  const scanDetail = useQuery({
+    queryKey: ["govshield", "scan", effectiveScanId],
+    queryFn: () => fetchScan({ data: { scanId: effectiveScanId! } }),
+    enabled: Boolean(effectiveScanId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.scan?.status;
+      return status && ACTIVE_STATUSES.has(status) ? 2000 : false;
+    },
+  });
 
   useEffect(() => {
     setNow(Date.now());
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
   const invalidateAudit = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["govshield", "audit"] });
@@ -174,6 +288,16 @@ export function GovShieldProvider({ children }: { children: ReactNode }) {
       log("SESSION_ESTABLISHED", "govshield.console");
     }
   }, [identity.data, log]);
+
+  // A finished scan writes its own audit entry from the worker endpoint.
+  const lastStatus = useRef<string | null>(null);
+  const detailStatus = scanDetail.data?.scan?.status ?? null;
+  useEffect(() => {
+    if (detailStatus && lastStatus.current && detailStatus !== lastStatus.current) {
+      invalidateAudit();
+    }
+    lastStatus.current = detailStatus;
+  }, [detailStatus, invalidateAudit]);
 
   const syncMutation = useMutation({
     mutationFn: () => runSync({ data: {} }),
@@ -200,27 +324,53 @@ export function GovShieldProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  const startScan = useCallback(() => {
-    setHasResults(false);
-    setScanStage(0);
-    log("SCAN_EXECUTION_STARTED", `${config.target}:${config.value}`);
-    SCAN_STAGES.forEach((_, i) => {
-      const t = setTimeout(() => setScanStage(i), i * 1000);
-      timers.current.push(t);
-    });
-    const done = setTimeout(() => {
-      setScanStage(-1);
-      setHasResults(true);
-      log("SCAN_COMPLETED_OSCAL_GENERATED", `${FINDINGS.length} findings correlated`);
-    }, 4000);
-    timers.current.push(done);
-  }, [config.target, config.value, log]);
+  const queueMutation = useMutation({
+    mutationFn: () =>
+      queueScan({
+        data: {
+          targetType: config.target,
+          targetValue: config.value,
+          modules: config.modules,
+          mode: config.mode,
+          cadence: config.cadence,
+          authorized: config.authorized,
+        },
+      }),
+    onSuccess: (scan) => {
+      setQueueError(null);
+      setSelectedScanId(scan.id);
+      void queryClient.invalidateQueries({ queryKey: ["govshield", "scans"] });
+      invalidateAudit();
+    },
+    onError: (err: Error) => setQueueError(err.message),
+  });
 
-  const resetScan = useCallback(() => {
-    setHasResults(false);
-    setScanStage(-1);
-    log("RESULTS_CLEARED", "assessment.workspace");
-  }, [log]);
+  const cancelMutation = useMutation({
+    mutationFn: (scanId: string) => abortScan({ data: { scanId } }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["govshield", "scans"] });
+      void queryClient.invalidateQueries({ queryKey: ["govshield", "scan"] });
+      invalidateAudit();
+    },
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: (workerId: string) => revoke({ data: { workerId } }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["govshield", "workers"] });
+      invalidateAudit();
+    },
+  });
+
+  const issueWorkerKey = useCallback(
+    async (name: string, capabilities: string[]) => {
+      const res = await mintWorker({ data: { name, capabilities } });
+      void queryClient.invalidateQueries({ queryKey: ["govshield", "workers"] });
+      invalidateAudit();
+      return res;
+    },
+    [mintWorker, queryClient, invalidateAudit],
+  );
 
   const feedRows = feedState.data?.feeds ?? [];
   const feeds = useMemo(() => feedRows.map(toFeed), [feedRows]);
@@ -248,6 +398,56 @@ export function GovShieldProvider({ children }: { children: ReactNode }) {
 
   const auditLog = useMemo(() => (audit.data ?? []).map(toAuditEntry), [audit.data]);
 
+  const selectedScan = scanDetail.data?.scan ?? null;
+  const findings = useMemo(
+    () => (scanDetail.data?.findings ?? []).map(toFinding),
+    [scanDetail.data],
+  );
+  const scanEvents = scanDetail.data?.events ?? [];
+  const scanning = Boolean(selectedScan && ACTIVE_STATUSES.has(selectedScan.status));
+
+  const controlCoverage = useMemo<ControlCoverage[]>(() => {
+    const counts = new Map<string, number>();
+    findings.forEach((f) => f.nistControls.forEach((c) => counts.set(c, (counts.get(c) ?? 0) + 1)));
+    const baseline = ["SI-2", "RA-5", "SC-7", "SC-8", "AC-3", "CM-6", "IA-5", "AU-9", "SI-10"];
+    const all = new Set([...baseline, ...counts.keys()]);
+    return Array.from(all)
+      .map((control) => {
+        const hits = counts.get(control) ?? 0;
+        const meta = CONTROL_TITLES[control] ?? { family: "Other", title: control };
+        return {
+          control,
+          family: meta.family,
+          title: meta.title,
+          status: hits === 0 ? "satisfied" : hits > 2 ? "failed" : ("partial" as const),
+          findings: hits,
+        } as ControlCoverage;
+      })
+      .sort((a, b) => b.findings - a.findings || a.control.localeCompare(b.control));
+  }, [findings]);
+
+  // Posture history from real completed assessments.
+  const trend = useMemo(() => {
+    return scans
+      .filter((s) => s.status === "completed" && s.posture !== null)
+      .slice(0, 30)
+      .reverse()
+      .map((s) => ({
+        day: new Date(s.finished_at ?? s.queued_at).toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+        }),
+        posture: s.posture ?? 0,
+        critical: 0,
+        high: 0,
+      }));
+  }, [scans]);
+
+  const startScan = useCallback(() => {
+    setQueueError(null);
+    queueMutation.mutate();
+  }, [queueMutation]);
+
   const value: GovShieldState = useMemo(
     () => ({
       identityLoading: identity.isLoading,
@@ -255,6 +455,7 @@ export function GovShieldProvider({ children }: { children: ReactNode }) {
       appRole,
       role: ROLE_LABEL[appRole],
       canWrite: appRole !== "auditor",
+      isAdmin: appRole === "admin",
       feeds,
       feedRows,
       counts: feedState.data?.counts ?? { kev: 0, epss: 0, nvd: 0, mitre: 0 },
@@ -268,12 +469,27 @@ export function GovShieldProvider({ children }: { children: ReactNode }) {
       feedsLoading: feedState.isLoading,
       config,
       updateConfig: (patch) => setConfig((c) => ({ ...c, ...patch })),
-      scanStage,
-      scanning: scanStage >= 0,
-      hasResults,
+      scans,
+      selectedScan,
+      selectScan: (id: string) => setSelectedScanId(id),
+      scanEvents,
+      scanning,
+      scanProgress: selectedScan?.progress ?? 0,
+      scanStageLabel: selectedScan?.stage ?? "",
+      scanError: selectedScan?.error ?? null,
+      queueError: queueError ?? (queueMutation.isPending ? null : queueError),
       startScan,
-      resetScan,
-      findings: hasResults ? FINDINGS : [],
+      cancelScan: () => selectedScan && cancelMutation.mutate(selectedScan.id),
+      resetScan: () => setSelectedScanId(null),
+      hasResults: Boolean(selectedScan?.status === "completed"),
+      findings,
+      findingsLoading: scanDetail.isLoading,
+      posture: selectedScan?.posture ?? null,
+      controlCoverage,
+      trend,
+      workers: workersQuery.data ?? [],
+      issueWorkerKey,
+      revokeWorker: (id: string) => revokeMutation.mutate(id),
       auditLog,
       log,
       chainValid,
@@ -297,10 +513,21 @@ export function GovShieldProvider({ children }: { children: ReactNode }) {
       lastSync,
       nextSyncIn,
       config,
-      scanStage,
-      hasResults,
+      scans,
+      selectedScan,
+      scanEvents,
+      scanning,
+      queueError,
+      queueMutation.isPending,
       startScan,
-      resetScan,
+      cancelMutation,
+      findings,
+      scanDetail.isLoading,
+      controlCoverage,
+      trend,
+      workersQuery.data,
+      issueWorkerKey,
+      revokeMutation,
       auditLog,
       log,
       chainValid,

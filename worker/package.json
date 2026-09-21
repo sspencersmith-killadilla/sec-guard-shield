@@ -1,0 +1,11 @@
+{
+  "name": "govshield-scanner-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Containerised scanner worker for the GovShield SecOps control plane",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node agent.mjs"
+  }
+}

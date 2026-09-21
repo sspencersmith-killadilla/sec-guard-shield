@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CONTROL_COVERAGE, SEVERITY_ORDER, TEST_MODULES, severityClasses } from "@/lib/govshield/data";
+import { SEVERITY_ORDER, TEST_MODULES, severityClasses } from "@/lib/govshield/data";
 import { useGovShield } from "@/lib/govshield/state";
 import type { Finding } from "@/lib/govshield/types";
 
@@ -67,7 +67,7 @@ function ExportButton({ findings }: { findings: Finding[] }) {
 }
 
 export function FindingsPanel() {
-  const { findings } = useGovShield();
+  const { findings, controlCoverage } = useGovShield();
   const [severity, setSeverity] = useState("all");
   const [moduleKey, setModuleKey] = useState("all");
   const [privacyOnly, setPrivacyOnly] = useState(false);
@@ -236,7 +236,7 @@ export function FindingsPanel() {
           <CardTitle className="text-base uppercase tracking-wider">Standard crosswalk — control coverage</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          {CONTROL_COVERAGE.map((c) => (
+          {controlCoverage.map((c) => (
             <div key={c.control} className="flex items-center gap-3 rounded-sm border border-border bg-background p-3">
               <span
                 className={`size-2.5 shrink-0 rounded-full ${

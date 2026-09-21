@@ -271,6 +271,264 @@ export type Database = {
         }
         Relationships: []
       }
+      scan_events: {
+        Row: {
+          at: string
+          id: number
+          message: string | null
+          progress: number | null
+          scan_id: string
+          stage: string
+        }
+        Insert: {
+          at?: string
+          id?: number
+          message?: string | null
+          progress?: number | null
+          scan_id: string
+          stage: string
+        }
+        Update: {
+          at?: string
+          id?: number
+          message?: string | null
+          progress?: number | null
+          scan_id?: string
+          stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scan_events_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "scans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scan_findings: {
+        Row: {
+          created_at: string
+          cve: string | null
+          cvss_vector: string | null
+          cvss31: number
+          cvss40: number
+          description: string
+          epss: number
+          fedramp_baseline: string
+          fips1403: boolean
+          id: string
+          kev: boolean
+          kev_due_date: string | null
+          location: string
+          module: string
+          nist_controls: string[]
+          ordinal: number
+          privacy_category: string | null
+          privacy_impact: string | null
+          raw: Json
+          ref: string
+          remediation: string
+          remediation_code: string | null
+          rule_id: string | null
+          scan_id: string
+          severity: string
+          target_type: string
+          title: string
+          tool: string
+          verification: string[]
+        }
+        Insert: {
+          created_at?: string
+          cve?: string | null
+          cvss_vector?: string | null
+          cvss31?: number
+          cvss40?: number
+          description: string
+          epss?: number
+          fedramp_baseline?: string
+          fips1403?: boolean
+          id?: string
+          kev?: boolean
+          kev_due_date?: string | null
+          location: string
+          module: string
+          nist_controls?: string[]
+          ordinal: number
+          privacy_category?: string | null
+          privacy_impact?: string | null
+          raw?: Json
+          ref: string
+          remediation: string
+          remediation_code?: string | null
+          rule_id?: string | null
+          scan_id: string
+          severity: string
+          target_type: string
+          title: string
+          tool: string
+          verification?: string[]
+        }
+        Update: {
+          created_at?: string
+          cve?: string | null
+          cvss_vector?: string | null
+          cvss31?: number
+          cvss40?: number
+          description?: string
+          epss?: number
+          fedramp_baseline?: string
+          fips1403?: boolean
+          id?: string
+          kev?: boolean
+          kev_due_date?: string | null
+          location?: string
+          module?: string
+          nist_controls?: string[]
+          ordinal?: number
+          privacy_category?: string | null
+          privacy_impact?: string | null
+          raw?: Json
+          ref?: string
+          remediation?: string
+          remediation_code?: string | null
+          rule_id?: string | null
+          scan_id?: string
+          severity?: string
+          target_type?: string
+          title?: string
+          tool?: string
+          verification?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scan_findings_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "scans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scan_workers: {
+        Row: {
+          capabilities: string[]
+          created_at: string
+          created_by: string | null
+          id: string
+          key_hash: string
+          last_seen_at: string | null
+          name: string
+          revoked_at: string | null
+          status: string
+          version: string | null
+        }
+        Insert: {
+          capabilities?: string[]
+          created_at?: string
+          created_by?: string | null
+          id: string
+          key_hash: string
+          last_seen_at?: string | null
+          name: string
+          revoked_at?: string | null
+          status?: string
+          version?: string | null
+        }
+        Update: {
+          capabilities?: string[]
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          key_hash?: string
+          last_seen_at?: string | null
+          name?: string
+          revoked_at?: string | null
+          status?: string
+          version?: string | null
+        }
+        Relationships: []
+      }
+      scans: {
+        Row: {
+          attempts: number
+          cadence: string | null
+          claimed_at: string | null
+          created_by: string | null
+          created_email: string
+          error: string | null
+          findings_count: number
+          finished_at: string | null
+          heartbeat_at: string | null
+          id: string
+          mode: string
+          modules: string[]
+          posture: number | null
+          progress: number
+          queued_at: string
+          stage: string
+          status: Database["public"]["Enums"]["scan_status"]
+          target_type: string
+          target_value: string
+          tool_versions: Json
+          worker_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          cadence?: string | null
+          claimed_at?: string | null
+          created_by?: string | null
+          created_email: string
+          error?: string | null
+          findings_count?: number
+          finished_at?: string | null
+          heartbeat_at?: string | null
+          id?: string
+          mode?: string
+          modules?: string[]
+          posture?: number | null
+          progress?: number
+          queued_at?: string
+          stage?: string
+          status?: Database["public"]["Enums"]["scan_status"]
+          target_type: string
+          target_value: string
+          tool_versions?: Json
+          worker_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          cadence?: string | null
+          claimed_at?: string | null
+          created_by?: string | null
+          created_email?: string
+          error?: string | null
+          findings_count?: number
+          finished_at?: string | null
+          heartbeat_at?: string | null
+          id?: string
+          mode?: string
+          modules?: string[]
+          posture?: number | null
+          progress?: number
+          queued_at?: string
+          stage?: string
+          status?: Database["public"]["Enums"]["scan_status"]
+          target_type?: string
+          target_value?: string
+          tool_versions?: Json
+          worker_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scans_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "scan_workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       threat_feeds: {
         Row: {
           auto_update: boolean
@@ -346,9 +604,50 @@ export type Database = {
         Args: { _action: string; _details?: Json; _target: string }
         Returns: number
       }
+      append_audit_system: {
+        Args: {
+          _action: string
+          _actor: string
+          _details?: Json
+          _target: string
+        }
+        Returns: number
+      }
       bootstrap_profile: {
         Args: { _email: string; _full_name?: string }
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      claim_scan: {
+        Args: { _capabilities: string[]; _worker_id: string }
+        Returns: {
+          attempts: number
+          cadence: string | null
+          claimed_at: string | null
+          created_by: string | null
+          created_email: string
+          error: string | null
+          findings_count: number
+          finished_at: string | null
+          heartbeat_at: string | null
+          id: string
+          mode: string
+          modules: string[]
+          posture: number | null
+          progress: number
+          queued_at: string
+          stage: string
+          status: Database["public"]["Enums"]["scan_status"]
+          target_type: string
+          target_value: string
+          tool_versions: Json
+          worker_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "scans"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       has_role: {
         Args: {
@@ -356,6 +655,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      reap_stalled_scans: {
+        Args: { _timeout_minutes?: number }
+        Returns: number
       }
       verify_audit_chain: {
         Args: never
@@ -368,6 +671,13 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "assessor" | "auditor"
+      scan_status:
+        | "queued"
+        | "claimed"
+        | "running"
+        | "completed"
+        | "failed"
+        | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -496,6 +806,14 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "assessor", "auditor"],
+      scan_status: [
+        "queued",
+        "claimed",
+        "running",
+        "completed",
+        "failed",
+        "cancelled",
+      ],
     },
   },
 } as const
