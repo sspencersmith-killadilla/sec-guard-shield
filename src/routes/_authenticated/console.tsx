@@ -95,7 +95,7 @@ function Console() {
       </main>
       <footer className="border-t border-border bg-surface">
         <div className="mx-auto max-w-[1600px] px-4 py-4 font-mono text-[11px] uppercase tracking-wider text-muted-foreground sm:px-6">
-          GovShield SecOps · Live threat intelligence · Scan engine simulated · NIST SP 800-53 Rev.5 · FedRAMP
+          GovShield SecOps · Live threat intelligence · Live scan engine · NIST SP 800-53 Rev.5 · FedRAMP
           Moderate/High · FIPS 140-3 · NIST Privacy Framework 1.0
         </div>
       </footer>
