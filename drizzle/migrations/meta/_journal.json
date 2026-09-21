@@ -57,6 +57,13 @@
       "when": 1789996177946,
       "tag": "0007_audit_hash_sha256_builtin",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790006041384,
+      "tag": "0008_restrict_read_policies_and_harden_definers",
+      "breakpoints": true
     }
   ]
 }
