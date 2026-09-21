@@ -1,4 +1,4 @@
-＃ GovShield scanner worker — Fly.io machine definition.
+# GovShield scanner worker — Fly.io machine definition.
 # Rename `app` to something unique before the first deploy.
 app = "govshield-scanner"
 primary_region = "dfw"
