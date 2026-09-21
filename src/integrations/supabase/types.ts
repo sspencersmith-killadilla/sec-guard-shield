@@ -83,6 +83,24 @@ export type Database = {
         }
         Relationships: []
       }
+      cron_config: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       epss_scores: {
         Row: {
           cve_id: string

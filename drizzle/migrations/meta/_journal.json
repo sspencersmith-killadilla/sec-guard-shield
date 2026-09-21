@@ -15,6 +15,13 @@
       "when": 1789993480208,
       "tag": "0001_enable_cron_net",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789993502462,
+      "tag": "0002_cron_config_table",
+      "breakpoints": true
     }
   ]
 }
