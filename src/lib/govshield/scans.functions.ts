@@ -75,10 +75,9 @@ const SCAN_COLUMNS =
   "id, created_email, target_type, target_value, modules, mode, cadence, status, stage, progress, worker_id, error, findings_count, posture, tool_versions, queued_at, claimed_at, finished_at";
 
 async function assertCanWrite(supabase: { rpc: (...args: never[]) => unknown }, userId: string) {
-  const rpc = supabase.rpc as unknown as (
-    fn: string,
-    args: Record<string, unknown>,
-  ) => Promise<{ data: unknown }>;
+  const rpc = (fn: string, args: Record<string, unknown>) =>
+    (supabase.rpc as unknown as (f: string, a: Record<string, unknown>) => Promise<{ data: unknown }>)
+      .call(supabase, fn, args);
   const [{ data: isAdmin }, { data: isAssessor }] = await Promise.all([
     rpc("has_role", { _user_id: userId, _role: "admin" }),
     rpc("has_role", { _user_id: userId, _role: "assessor" }),
