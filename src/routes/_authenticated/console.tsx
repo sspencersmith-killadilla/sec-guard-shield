@@ -8,6 +8,7 @@ import { ScanPanel } from "@/components/govshield/ScanPanel";
 import { FindingsPanel } from "@/components/govshield/FindingsPanel";
 import { AuditPanel } from "@/components/govshield/AuditPanel";
 import { OverviewPanel } from "@/components/govshield/OverviewPanel";
+import { SetupPanel } from "@/components/govshield/SetupPanel";
 
 const TITLE = "Assessment Console — GovShield SecOps";
 const DESCRIPTION =
@@ -42,6 +43,7 @@ const TABS = [
   { id: "scan", label: "New Scan" },
   { id: "findings", label: "Findings" },
   { id: "audit", label: "Audit Log" },
+  { id: "setup", label: "Setup" },
 ];
 
 function Console() {
@@ -90,6 +92,9 @@ function Console() {
           </TabsContent>
           <TabsContent value="audit" className="mt-0">
             <AuditPanel />
+          </TabsContent>
+          <TabsContent value="setup" className="mt-0">
+            <SetupPanel />
           </TabsContent>
         </Tabs>
       </main>
