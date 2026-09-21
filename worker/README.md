@@ -66,3 +66,7 @@ All three endpoints require the `x-govshield-worker-key` header.
 Active web testing is only launched for targets an operator explicitly confirms
 they are authorised to assess; that confirmation is written to the tamper-evident
 audit ledger alongside the queued job.
+
+## Deploying
+
+Step-by-step hosting instructions live in [DEPLOY.md](./DEPLOY.md).
