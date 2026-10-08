@@ -35,7 +35,7 @@ export const listUsers = createServerFn({ method: "GET" })
     return data.users.map((u) => ({
       id: u.id,
       email: u.email ?? "",
-      fullName: (u.user_metadata?.full_name as string | undefined) ?? null,
+      fullName: (u.user_metadata?.["full_name"] as string | undefined) ?? null,
       role: best.get(u.id) ?? null,
       createdAt: u.created_at,
       lastSignIn: u.last_sign_in_at ?? null,
