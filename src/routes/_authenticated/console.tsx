@@ -9,6 +9,7 @@ import { FindingsPanel } from "@/components/govshield/FindingsPanel";
 import { AuditPanel } from "@/components/govshield/AuditPanel";
 import { OverviewPanel } from "@/components/govshield/OverviewPanel";
 import { SetupPanel } from "@/components/govshield/SetupPanel";
+import { UsersPanel } from "@/components/govshield/UsersPanel";
 
 const TITLE = "Assessment Console — GovShield SecOps";
 const DESCRIPTION =
@@ -43,12 +44,13 @@ const TABS = [
   { id: "scan", label: "New Scan" },
   { id: "findings", label: "Findings" },
   { id: "audit", label: "Audit Log" },
+  { id: "users", label: "Users" },
   { id: "setup", label: "Setup" },
 ];
 
 function Console() {
   const [tab, setTab] = useState("overview");
-  const { hasResults, scanning, findings } = useGovShield();
+  const { hasResults, scanning, findings, isAdmin } = useGovShield() as ReturnType<typeof useGovShield> & { isAdmin: boolean };
 
   return (
     <div className="min-h-screen bg-background">
@@ -56,7 +58,7 @@ function Console() {
       <main className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6">
         <Tabs value={tab} onValueChange={setTab} className="space-y-6">
           <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-sm border border-border bg-surface p-1">
-            {TABS.map((t) => (
+            {TABS.filter((t) => t.id !== "users" || isAdmin).map((t) => (
               <TabsTrigger
                 key={t.id}
                 value={t.id}
@@ -92,6 +94,9 @@ function Console() {
           </TabsContent>
           <TabsContent value="audit" className="mt-0">
             <AuditPanel />
+          </TabsContent>
+          <TabsContent value="users" className="mt-0">
+            <UsersPanel />
           </TabsContent>
           <TabsContent value="setup" className="mt-0">
             <SetupPanel />
