@@ -120,7 +120,7 @@ function AuthPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base uppercase tracking-wider">
-                {mode === "signin" ? "Authenticate" : "Request console access"}
+                {mode === "signin" ? "Authenticate" : mode === "forgot" ? "Reset password" : "Request console access"}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -152,10 +152,26 @@ function AuthPage() {
                     required
                   />
                 </div>
+                {mode !== "forgot" && (
                 <div className="space-y-1.5">
-                  <Label htmlFor="password" className="font-mono text-[11px] uppercase">
-                    Password
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="font-mono text-[11px] uppercase">
+                      Password
+                    </Label>
+                    {mode === "signin" && (
+                      <button
+                        type="button"
+                        className="text-xs text-primary underline underline-offset-2"
+                        onClick={() => {
+                          setMode("forgot");
+                          setError(null);
+                          setNotice(null);
+                        }}
+                      >
+                        Forgot password?
+                      </button>
+                    )}
+                  </div>
                   <Input
                     id="password"
                     type="password"
@@ -166,6 +182,7 @@ function AuthPage() {
                     required
                   />
                 </div>
+                )}
 
                 {error && (
                   <p className="rounded-sm border border-critical/40 bg-critical/10 px-3 py-2 font-mono text-xs text-critical">
@@ -180,8 +197,17 @@ function AuthPage() {
 
                 <Button type="submit" disabled={busy} className="w-full gap-2 font-mono uppercase">
                   {busy && <Loader2 className="size-4 animate-spin" aria-hidden />}
-                  {mode === "signin" ? "Sign in" : "Create account"}
+                  {mode === "signin" ? "Sign in" : mode === "forgot" ? "Send reset link" : "Create account"}
                 </Button>
+                {mode === "forgot" && (
+                  <button
+                    type="button"
+                    className="w-full text-center text-xs text-primary underline underline-offset-2"
+                    onClick={() => setMode("signin")}
+                  >
+                    Back to sign in
+                  </button>
+                )}
               </form>
 
               <div className="flex items-center gap-3">
