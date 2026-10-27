@@ -29,7 +29,7 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -57,7 +57,14 @@ function AuthPage() {
     setError(null);
     setNotice(null);
     try {
-      if (mode === "signup") {
+      if (mode === "forgot") {
+        const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        if (err) throw err;
+        setNotice("If that address has an account, a reset link is on its way. Check your inbox.");
+        setMode("signin");
+      } else if (mode === "signup") {
         const { data, error: err } = await supabase.auth.signUp({
           email,
           password,
