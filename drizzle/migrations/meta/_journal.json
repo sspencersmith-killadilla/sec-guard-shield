@@ -64,6 +64,13 @@
       "when": 1790006041384,
       "tag": "0008_restrict_read_policies_and_harden_definers",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795186424664,
+      "tag": "0009_restrict_feed_reads_to_role_holders",
+      "breakpoints": true
     }
   ]
 }
